@@ -32,20 +32,28 @@ contract Vote is Ownable{
 
     mapping (address => Voter) voter;
 
+    modifier isWhitelisted() {
+       require(voter[msg.sender].isRegistred, "Vous n'etes pas enregistre dans la whitelist.");
+       _;
+    }
+
+    // Obtention des whitelist par l'owner
+
     function whitelist(address _address) public onlyOwner {
         require(!voter[_address].isRegistred, "This address is already whitelisted !");
         voter[_address] = Voter(true, false, 0); 
         emit VoterRegistered(_address);
     }
 
+    // Section proposal
+
     function proposalStarted() public onlyOwner {
         workflow = WorkflowStatus.ProposalsRegistrationStarted;
         emit WorkflowStatusChange(WorkflowStatus.RegisteringVoters, workflow);
     }
 
-    function registrationProposal( string memory _description) public {
+    function registrationProposal( string memory _description) public isWhitelisted{
         require(workflow == WorkflowStatus.ProposalsRegistrationStarted, "La periode d'enregistrement n'est pas ouverte.");
-        require(voter[msg.sender].isRegistred, "Vous n'etes pas enregistre dans la whitelist.");
         Proposal memory proposition = Proposal(_description, 0);
         propositions.push(proposition);
         emit ProposalRegistered(propositions.length - 1);
@@ -56,14 +64,15 @@ contract Vote is Ownable{
         emit WorkflowStatusChange(WorkflowStatus.ProposalsRegistrationStarted, workflow);
     }
 
+    // Section vote
+
     function voteStarted() onlyOwner public {
         workflow = WorkflowStatus.VotingSessionStarted;
         emit WorkflowStatusChange(WorkflowStatus.ProposalsRegistrationEnded, workflow);
     }
 
-    function voteProposal(uint  _id) public {
+    function voteProposal(uint  _id) public isWhitelisted {
         require(workflow == WorkflowStatus.VotingSessionStarted, "La periode de vote n'est pas ouverte.");
-        require(voter[msg.sender].isRegistred, "Vous n'etes pas enregistre dans la whitelist.");
         propositions[_id -1].voteCount += 1;
         voter[msg.sender].hasVoted = true;
         voter[msg.sender].votedProposalId = _id ;
@@ -75,10 +84,12 @@ contract Vote is Ownable{
         emit WorkflowStatusChange(WorkflowStatus.VotingSessionStarted, workflow);
     }
 
+    // Récupération de la proposal winner
+
     function getWinner() view public returns(Proposal memory) {
         uint  _id;
         uint  count = 0;
-        for(uint i = 0 ; i < propositions.length -1 ; i++) {
+        for(uint i = 0 ; i < propositions.length ; i++) {
             if(propositions[i].voteCount > count) {
                 count = propositions[i].voteCount;
                 _id = i;
@@ -86,9 +97,10 @@ contract Vote is Ownable{
         }
         return propositions[_id];
     }
-    function verifVote(address _address) view public returns(uint) {
-        // Cette fonction permet de vérifier le vote d'un electeur en fonction de son adresse.
-        require(voter[msg.sender].isRegistred, "Vous n'etes pas enregistre dans la whitelist.");
+
+    // Cette fonction permet de vérifier le vote d'un electeur en fonction de son adresse.
+
+    function checkVote(address _address) view public isWhitelisted returns(uint) {
         return voter[_address].votedProposalId;
     }
 
